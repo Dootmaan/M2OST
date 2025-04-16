@@ -15,10 +15,7 @@ EPOCH=200
 LR=1e-4
 BATCH_SIZE=48
 
-selected_genes=np.load('/home/why/Workspace-Python/SRofST/dataset/HBC_Selected_Genes.npy',allow_pickle=True).tolist()
-# random.seed(1553)
-# selected_genes=random.sample(selected_genes,250)
-# random.seed()
+selected_genes=np.load('./dataset/HBC_Selected_Genes.npy',allow_pickle=True).tolist()
 
 writer = SummaryWriter(log_dir = './logs')
 device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -26,12 +23,7 @@ device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # model_gen = torchvision.models.resnet50(weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
 # model_gen.fc=torch.nn.Linear(2048,len(selected_genes))
 model_gen=M2OST(num_classes=250,depth=4,dim=192*3, mlp_dim=192*2, heads=9,dim_head=64)
-# model_s=ViT(depth=6,dim=192*3, mlp_dim=192*2, heads=9,dim_head=64)
-# model_b=ViT()
-# model_l=ViT(depth=12,dim=384*3, mlp_dim=384*2, heads=18,dim_head=64)
-# model_gen.heads=torch.nn.Sequential(
-#     torch.nn.Linear(768,len(selected_genes))
-# )
+
 model_gen.to(device)
 # model_gen=torch.nn.DataParallel(torch.nn.SyncBatchNorm.convert_sync_batchnorm(model_gen).to(device),device_ids=[0,1])
 model_gen=torch.nn.DataParallel(model_gen,device_ids=[0,1])
