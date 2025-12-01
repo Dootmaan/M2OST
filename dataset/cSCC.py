@@ -8,18 +8,18 @@ import pandas
 # import os 
 import torch
 import random
-import torchvision.transforms as T
+import os
 import PIL
-
 from PIL import Image
 Image.MAX_IMAGE_PIXELS = None
+import torchvision.transforms as T
 # from feature_selection import top_gene_selection
 
-class BreastSTDataset(torch.utils.data.Dataset):
-    def __init__(self, path='/newdata/why/Human_breast_cancer_in_situ_capturing_transcriptomics/BRCA',mode='train',selected_genes=None):
+class GSE144240Dataset(torch.utils.data.Dataset):
+    def __init__(self, path='/newdata/why/GSE144240/',mode='train',selected_genes=None):
         # selected_genes=top_gene_selection(path,2000)
         if selected_genes==None:
-            selected_genes=np.load('Breast_Result_Gene.npy',allow_pickle=True).tolist()
+            selected_genes=np.load('Breast_Result_Gene_GSE144240.npy',allow_pickle=True).tolist()
 
         self.mode=mode
         self.wsi_imgs=[]
@@ -35,15 +35,15 @@ class BreastSTDataset(torch.utils.data.Dataset):
             )
         self.transform2=T.Compose([
             T.Resize((224,224)),
-            T.ToTensor()
-        ])
+            T.ToTensor()]
+            )
 
-        wsi_filenames=sorted(glob.glob(path+'/*/*.jpg'))
+        wsi_filenames=sorted(glob.glob(path+'/*.jpg'))
         random.seed(1553)
         random.shuffle(wsi_filenames)
         random.seed()
 
-        train_frac, val_frac, test_frac = 0.7, 0, 0.3
+        train_frac, val_frac, test_frac = 0.7, 0.0, 0.3
         n_train=int(len(wsi_filenames)*train_frac) 
         n_val = int(len(wsi_filenames)*val_frac)
         n_test=int(len(wsi_filenames)*test_frac)
@@ -58,20 +58,22 @@ class BreastSTDataset(torch.utils.data.Dataset):
         for wsi_file in wsi_filenames:
             print('processing:', wsi_file)
             wsi_img=PIL.Image.open(wsi_file)
-            wsi_img.pad()
 
             wsi_basename=wsi_file.split(r'.')[0]
-            st_coords=wsi_basename+'_Coord.tsv' # stores label, useless in SR
-            st_feats=wsi_basename+'.tsv'
-            st_spots_pixel_map=wsi_basename+'.spots.txt'
+            # st_coords=path+'/spot-selections/'+wsi_basename+'_selection.tsv' # stores label, useless in SR
+            st_feats=wsi_basename+'_stdata.tsv'
+            st_spots_pixel_map=wsi_basename.split(r'_P')[0]+'_spot_data-selection-P'+wsi_basename.split(r'_P')[1]+'.tsv'
 
             feats_all=pandas.read_csv(st_feats,sep='\t',index_col=0,header=0)
-            spots_pixel_map_all=pandas.read_csv(st_spots_pixel_map,sep=',',index_col=0,header=0)
+            spots_pixel_map_all=pandas.read_csv(st_spots_pixel_map,sep='\t',header=0)
 
             for spots_pixel_map in spots_pixel_map_all.iterrows():
-                idx=spots_pixel_map[0]
-                x=spots_pixel_map[1]['X']
-                y=spots_pixel_map[1]['Y']
+                idx_x=int(spots_pixel_map[1]['x'])
+                idx_y=int(spots_pixel_map[1]['y'])
+                idx=str(idx_x)+'x'+str(idx_y)
+
+                x=spots_pixel_map[1]['pixel_x']
+                y=spots_pixel_map[1]['pixel_y']
 
                 try:
                     patch2=wsi_img.crop((int(x-448), int(y-448),int(x+448),int(y+448)))
@@ -104,20 +106,17 @@ class BreastSTDataset(torch.utils.data.Dataset):
                 feats=np.log1p(feats*1000000/spot_sum)
                 self.st_spots_pixel_map.append([idx,x,y])
                 self.st_feats.append(np.array(feats))
-
+                # self.wsi_imgs.append({'img':wsi_file,'coord':(x,y)})
                 if self.mode=='test':
                     patch=self.transform2(patch)
                     patch1=self.transform2(patch1)
                     patch2=self.transform2(patch2)
                     self.wsi_imgs.append([patch,patch1,patch2])
-                    # self.wsi_imgs.append(patch)
                 else:
                     patch=self.transform(patch)
                     patch1=self.transform(patch1)
                     patch2=self.transform(patch2)
                     self.wsi_imgs.append([patch,patch1,patch2])
-                    # self.wsi_imgs.append(patch)
-
 
         print('total number of samples:', len(self.st_spots_pixel_map))
     def __len__(self):
@@ -132,8 +131,20 @@ class BreastSTDataset(torch.utils.data.Dataset):
             
         return self.st_spots_pixel_map[index], self.wsi_imgs[index], self.st_feats[index]
 
-        # return self.st_spots_pixel_map[index], self.wsi_imgs[index].transpose(2,0,1), self.st_feats[index]
 
+    #     print('total number of samples:', len(self.st_spots_pixel_map))
+
+    # def __len__(self):
+    #     return len(self.st_feats)
+    
+    # def __getitem__(self,index):
+    #     if self.mode=='test':
+    #         return self.st_spots_pixel_map[index], self.transform2(self.wsi_imgs[index]), self.st_feats[index]
+    #     # patch_info=self.wsi_imgs[index]
+    #     # x,y=patch_info['coord']
+    #     # patch=cv2.imread(patch_info['img'])[int(x-112):int(x+112), int(y-112):int(y+112),:]
+            
+    #     return self.st_spots_pixel_map[index], self.transform(self.wsi_imgs[index]), self.st_feats[index]
 # class LRBreastSTDataset(torch.utils.data.Dataset):
 #     def __init__(self, path='/newdata/why/Human_breast_cancer_in_situ_capturing_transcriptomics/BRCA',mode='train',selected_genes=None):
 #         # selected_genes=top_gene_selection(path,2000)
@@ -337,4 +348,4 @@ class BreastSTDataset(torch.utils.data.Dataset):
 #         return self.st_spots_pixel_map[index], self.wsi_imgs[index], self.st_feats[index], self.hr_img_gts[index], self.hr_st_feats_gts[index]
 
 if __name__=="__main__":
-    testdataset=BreastSTDataset()
+    testdataset=HER2Dataset()
